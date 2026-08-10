@@ -6,3 +6,4 @@ app.use(cors());
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Express TypeScript backend running" });
 });
+
