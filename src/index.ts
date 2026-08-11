@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import healthRoutes from "./routes/healthRoutes";
 import projectRouters from "./routes/projectRoutes";
 import authRoutes from "./auth/authRoutes";
+import githubRoutes from "./routes/githubRoutes";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.get("/", (req, res) => {
 app.use("/api/health", healthRoutes);
 app.use("/api/project", projectRouters);
 app.use("/api/auth", authRoutes);
+app.use("/api/github", githubRoutes);
 
 if (process.env.VERCEL !== "1") {
   app.listen(PORT, () => {

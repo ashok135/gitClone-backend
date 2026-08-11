@@ -1,5 +1,8 @@
 import express, { Request, Response } from "express";
 
+import  jwt from "jsonwebtoken"
+import prisma from "../config/db/prisma";
+
 const router = express.Router();
 
 // POST /github endpoint to exchange authorization code for access token and profile
@@ -35,6 +38,8 @@ router.post("/github", async (req: Request, res: Response): Promise<void> => {
         code,
       }),
     });
+
+    console.log(tokenResponse)
 
     const tokenData = await tokenResponse.json() as { 
       access_token?: string; 
@@ -76,17 +81,46 @@ router.post("/github", async (req: Request, res: Response): Promise<void> => {
       html_url: string;
     };
 
-    // 3. Return user profile and token to frontend
+    // 3. Find or Create the User in your database
+    const email = userData.email || `${userData.login}@github.com`;
+    
+    let dbUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!dbUser) {
+      dbUser = await prisma.user.create({
+        data: {
+          email,
+          name: userData.name || userData.login
+        }
+      });
+    }
+
+    // 4. Sign your own custom backend JWT token
+    const jwtSecret = process.env.JWT_SECRET || "your_fallback_jwt_secret";
+    const userPayload = {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name,
+      username: userData.login,
+      avatarUrl: userData.avatar_url,
+      profileUrl: userData.html_url,
+    };
+    
+    const backendToken = jwt.sign(
+      { 
+        ...userPayload,
+        githubToken: access_token
+      },
+      jwtSecret,
+      { expiresIn: "7d" }
+    );
+
+    // 5. Return your JWT and Database User to the React app
     res.json({
-      token: access_token,
-      user: {
-        username: userData.login,
-        id: userData.id,
-        name: userData.name || userData.login,
-        avatarUrl: userData.avatar_url,
-        profileUrl: userData.html_url,
-        email: userData.email,
-      }
+      token: backendToken,
+      user: userPayload
     });
 
   } catch (error: any) {
@@ -164,19 +198,46 @@ router.get("/github/callback", async (req: Request, res: Response): Promise<void
       email: string | null;
       html_url: string;
     };
+   
+      // 3. Find or Create the User in your database
+    const email = userData.email || `${userData.login}@github.com`;
+    
+    let dbUser = await prisma.user.findUnique({
+      where: { email }
+    });
 
-    const user = {
+    if (!dbUser) {
+      dbUser = await prisma.user.create({
+        data: {
+          email,
+          name: userData.name || userData.login
+        }
+      });
+    }
+
+    // 4. Sign your own custom backend JWT token
+    const jwtSecret = process.env.JWT_SECRET || "your_fallback_jwt_secret";
+    const userPayload = {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name,
       username: userData.login,
-      id: userData.id,
-      name: userData.name || userData.login,
       avatarUrl: userData.avatar_url,
       profileUrl: userData.html_url,
-      email: userData.email,
     };
+    
+    const backendToken = jwt.sign(
+      { 
+        ...userPayload,
+        githubToken: access_token
+      },
+      jwtSecret,
+      { expiresIn: "7d" }
+    );
 
-    // 3. Redirect back to frontend with user data and token in query string
-    const encodedUser = encodeURIComponent(JSON.stringify(user));
-    res.redirect(`${frontend_url}?token=${access_token}&user=${encodedUser}`);
+    // 5. Redirect back to frontend with your JWT and DB User info
+    const encodedUser = encodeURIComponent(JSON.stringify(userPayload));
+    res.redirect(`${frontend_url}?token=${backendToken}&user=${encodedUser}`);
 
   } catch (error: any) {
     console.error("GitHub Callback Error:", error);
