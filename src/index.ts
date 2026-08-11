@@ -1,12 +1,11 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import healthRoutes from "./routes/healthRoutes";
 import projectRouters from "./routes/projectRoutes";
 import authRoutes from "./auth/authRoutes";
 import githubRoutes from "./routes/githubRoutes";
 
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT ?? 5000;
